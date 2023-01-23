@@ -2,6 +2,17 @@
 name = "forged-cli"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = [
+    "Ryan Summers <ryan.summers@vertigo-designs.com>",
+    "Noah Hüsser <noah@huesser.dev",
+]
+description = "Command-line interface for forged.dev and device provisioning processes"
+homepage = "https://forged.dev"
+repository = "https://github.com/forged-org/forged-clients"
+categories = ["command-line-utilities", "database", "development-tools", "embedded"]
+keywords = ["forged", "cli", "hardware", "provision"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

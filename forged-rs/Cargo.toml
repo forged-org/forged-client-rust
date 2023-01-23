@@ -2,6 +2,16 @@
 name = "forged"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = [
+    "Ryan Summers <ryan.summers@vertigo-designs.com>",
+    "Noah Hüsser <noah@huesser.dev",
+]
+description = "Client API for forged.dev and device provisioning processes"
+homepage = "https://forged.dev"
+repository = "https://github.com/forged-org/forged-clients"
+categories = ["command-line-interface", "database", "development-tools", "embedded"]
+keywords = ["forged", "api", "client", "hardware", "provision"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
