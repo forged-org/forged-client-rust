@@ -5,8 +5,8 @@ pub use queries::*;
 
 #[cynic::schema_for_derives(file = "schema.graphql", module = "schema")]
 pub mod queries {
-    use forged::cynic;
     use super::schema;
+    use forged::cynic;
     use uuid::Uuid;
 
     cynic::impl_scalar!(serde_json::Value, schema::Json);

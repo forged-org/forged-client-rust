@@ -6,11 +6,7 @@ use crate::{
     Result,
 };
 
-pub async fn block(
-    client: &mut forged::Client,
-    schema_name: String,
-    data: Value,
-) -> Result<()> {
+pub async fn block(client: &mut forged::Client, schema_name: String, data: Value) -> Result<()> {
     println!("📎  Creating block:");
     println!("{data:#}");
 

@@ -25,7 +25,10 @@ async fn main() -> anyhow::Result<()> {
 
     let mut client = forged::Client::new(token);
 
-    if let Some(endpoint) = cli.api_instance_url.or_else(|| env::var("FORGED_INSTANCE_URL").ok()) {
+    if let Some(endpoint) = cli
+        .api_instance_url
+        .or_else(|| env::var("FORGED_INSTANCE_URL").ok())
+    {
         client = client.api(endpoint);
     }
 
