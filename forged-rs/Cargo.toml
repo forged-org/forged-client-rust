@@ -9,7 +9,7 @@ authors = [
 ]
 description = "Client API for forged.dev and device provisioning processes"
 homepage = "https://forged.dev"
-repository = "https://github.com/forged-org/forged-client-rust"
+repository = "https://github.com/forged-org/forged-clients"
 categories = ["command-line-interface", "database", "development-tools", "embedded"]
 keywords = ["forged", "api", "client", "hardware", "provision"]
 
