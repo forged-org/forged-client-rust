@@ -1,0 +1,45 @@
+name: Check CLI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2.3.4
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - run: cargo fmt --all -- --check
+        working-directory: ./forged-cli
+
+
+  clippy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2.3.4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libusb-1.0-0-dev libudev-dev
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: cache dependencies
+        uses: swatinem/rust-cache@v1.3.0
+        with:
+          working-directory: ./forged-cli
+
+      - run: cargo clippy
+        working-directory: ./forged-cli

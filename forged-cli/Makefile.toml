@@ -1,0 +1,28 @@
+[tasks.start]
+command = "cargo"
+args = ["run", "--quiet", "--", "start"]
+
+[tasks.log1]
+command = "cargo"
+args = [
+    "run",
+    "--quiet",
+    "--",
+    "log",
+    "DEBUG",
+    "This is a log after device creation.",
+]
+dependencies = ["start"]
+
+[tasks.download]
+command = "cargo"
+args = ["run", "--quiet", "--", "download"]
+dependencies = ["log1"]
+
+[tasks.log2]
+command = "cargo"
+args = ["run", "--quiet", "--", "log", "DEBUG", "This is a log after flashing."]
+dependencies = ["download"]
+
+[tasks.provision]
+dependencies = ["start", "log1", "download", "log2"]
