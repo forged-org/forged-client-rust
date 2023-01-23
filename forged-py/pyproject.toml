@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forged"
+description = "Forged.dev Client library"
+version = "0.0.1"
+dependencies = [
+    "gql[all]"
+]
