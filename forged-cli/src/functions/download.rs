@@ -47,7 +47,7 @@ fn run_flash_download(chip: impl AsRef<str>, parts: Vec<BinaryPart>) -> Result<(
     }
 
     // Create a new session
-    let mut session = probe.attach(chip.as_ref())?;
+    let mut session = probe.attach(chip.as_ref(), probe_rs::Permissions::default())?;
 
     let target = session.target();
 
@@ -71,7 +71,7 @@ fn run_flash_download(chip: impl AsRef<str>, parts: Vec<BinaryPart>) -> Result<(
                 .load_bin_data(
                     &mut Cursor::new(part.image.into_iter().map(|v| v as u8).collect::<Vec<_>>()),
                     BinOptions {
-                        base_address: part.memory_offset.map(|o| o as u32),
+                        base_address: part.memory_offset.map(|o| o as u64),
                         skip: 0,
                     },
                 )
@@ -85,6 +85,7 @@ fn run_flash_download(chip: impl AsRef<str>, parts: Vec<BinaryPart>) -> Result<(
     }
 
     let flash_options = FlashOptions {
+        disable_double_buffering: false,
         version: false,
         list_chips: false,
         list_probes: false,
@@ -97,6 +98,7 @@ fn run_flash_download(chip: impl AsRef<str>, parts: Vec<BinaryPart>) -> Result<(
         work_dir: None,
         cargo_options: CargoOptions::default(),
         probe_options: probe_rs_cli_util::common_options::ProbeOptions {
+            allow_erase_all: true,
             chip: None,
             chip_description_path: None,
             protocol: None,
