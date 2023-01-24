@@ -1,11 +1,28 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "forged"
+name = "forged-client"
 description = "Forged.dev Client library"
 version = "0.0.1"
+readme = "README.md"
+authors = [
+    { name = "Ryan Summers", email = "ryan.summers@vertigo-designs.com" },
+    { name = "Noah Hüsser", email = "noah@huesser.dev" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Manufacturing",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+]
+keywords = ["api", "client", "database", "embedded"]
 dependencies = [
     "gql[all]"
 ]
+
+[project.urls]
+Homepage = "https://forged.dev"
