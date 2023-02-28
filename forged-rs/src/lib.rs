@@ -5,7 +5,7 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 use cynic::{http::CynicReqwestError, GraphQlError, GraphQlResponse, Operation};
 use regex::Regex;
 use reqwest::multipart;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// The default endpoint for the forged.dev API.
 const DEFAULT_API_URL: &str = "https://api.forged.dev";
@@ -13,7 +13,7 @@ const DEFAULT_API_URL: &str = "https://api.forged.dev";
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("At least one error was returned from the GraphQL server")]
-    Graphql(#[from] GraphQlError),
+    Graphql(#[from] GraphQlError<serde::de::IgnoredAny>),
     #[error("An error with cynic occured")]
     Cynic(#[from] CynicReqwestError),
 }
@@ -57,10 +57,11 @@ impl Client {
     ///
     /// # Returns
     /// A GraphQL object representing the result of the executed query.
-    pub async fn run_query<T: 'static>(
-        &self,
-        operation: Operation<'static, T>,
-    ) -> Result<T, Error> {
+    pub async fn run_query<T, V>(&self, operation: Operation<T, V>) -> Result<T, Error>
+    where
+        T: serde::de::DeserializeOwned + 'static,
+        V: Serialize,
+    {
         use cynic::http::ReqwestExt;
 
         let r = reqwest::Client::new()
@@ -86,11 +87,15 @@ impl Client {
     ///
     /// # Returns
     /// A GraphQL object representing the result of the executed query.
-    pub async fn run_query_with_file_upload<T: 'static>(
+    pub async fn run_query_with_file_upload<T, V>(
         &self,
-        operation: Operation<'static, T>,
+        operation: Operation<T, V>,
         files: Vec<Upload>,
-    ) -> Result<T, Error> {
+    ) -> Result<T, Error>
+    where
+        T: DeserializeOwned,
+        V: Serialize,
+    {
         let mut files_map = HashMap::new();
 
         let re = Regex::new(r"\$(_\d+): Upload").unwrap();
@@ -123,7 +128,6 @@ impl Client {
                 .post(&self.instance_url)
                 .header("Authorization", format!("Bearer {}", &self.token))
                 .multipart(form),
-            operation,
         )
         .await?;
 
@@ -137,12 +141,12 @@ impl Client {
     }
 }
 
-fn make_graphql_request<'a, ResponseData: 'a>(
+fn make_graphql_request<T>(
     builder: reqwest::RequestBuilder,
-    operation: Operation<'a, ResponseData>,
-) -> Pin<
-    Box<dyn Future<Output = Result<GraphQlResponse<ResponseData>, CynicReqwestError>> + Send + 'a>,
-> {
+) -> Pin<Box<dyn Future<Output = Result<GraphQlResponse<T>, CynicReqwestError>> + Send>>
+where
+    T: DeserializeOwned,
+{
     Box::pin(async move {
         match builder.send().await {
             Ok(response) => {
@@ -150,11 +154,9 @@ fn make_graphql_request<'a, ResponseData: 'a>(
                 if !status.is_success() {
                     let body_string = response.text().await?;
 
-                    match serde_json::from_str::<GraphQlResponse<serde_json::Value>>(&body_string) {
+                    match serde_json::from_str::<GraphQlResponse<T>>(&body_string) {
                         Ok(response) => {
-                            return operation
-                                .decode_response(response)
-                                .map_err(CynicReqwestError::DecodeError)
+                            return Ok(response);
                         }
                         Err(_) => {
                             return Err(CynicReqwestError::ErrorResponse(status, body_string));
@@ -163,14 +165,9 @@ fn make_graphql_request<'a, ResponseData: 'a>(
                 }
 
                 response
-                    .json::<GraphQlResponse<serde_json::Value>>()
+                    .json::<GraphQlResponse<T>>()
                     .await
                     .map_err(CynicReqwestError::ReqwestError)
-                    .and_then(|gql_response| {
-                        operation
-                            .decode_response(gql_response)
-                            .map_err(CynicReqwestError::DecodeError)
-                    })
             }
             Err(e) => Err(CynicReqwestError::ReqwestError(e)),
         }
