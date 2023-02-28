@@ -1,6 +1,6 @@
 [package]
 name = "forged"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = [
@@ -10,14 +10,19 @@ authors = [
 description = "Client API for forged.dev and device provisioning processes"
 homepage = "https://forged.dev"
 repository = "https://github.com/forged-org/forged-clients"
-categories = ["command-line-interface", "database", "development-tools", "embedded"]
+categories = [
+    "command-line-interface",
+    "database",
+    "development-tools",
+    "embedded",
+]
 keywords = ["forged", "api", "client", "hardware", "provision"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 regex = "1"
-cynic = { version = "1.0.0", features = ["reqwest"] }
+cynic = { version = "2", features = ["http-reqwest"] }
 reqwest = { version = "0.11", features = ["json", "multipart"] }
 serde_json = "1.0.75"
 serde = "1"
