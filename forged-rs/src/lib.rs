@@ -62,13 +62,13 @@ impl Client {
         T: serde::de::DeserializeOwned + 'static,
         V: Serialize,
     {
-        use cynic::http::ReqwestExt;
-
-        let r = reqwest::Client::new()
-            .post(&self.instance_url)
-            .bearer_auth(&self.token)
-            .run_graphql(operation)
-            .await?;
+        let r = make_graphql_request(
+            reqwest::Client::new()
+                .post(&self.instance_url)
+                .bearer_auth(&self.token)
+                .json(&operation),
+        )
+        .await?;
 
         if let Some(errors) = r.errors {
             Err(errors[0].clone().into())
@@ -98,7 +98,7 @@ impl Client {
     {
         let mut files_map = HashMap::new();
 
-        let re = Regex::new(r"\$(_\d+): Upload").unwrap();
+        let re = Regex::new(r"\$(\w+): Upload").unwrap();
         for cap in re.captures_iter(&operation.query) {
             files_map.insert(files_map.len(), vec![format!("variables.{}", &cap[1])]);
         }
@@ -153,7 +153,6 @@ where
                 let status = response.status();
                 if !status.is_success() {
                     let body_string = response.text().await?;
-
                     match serde_json::from_str::<GraphQlResponse<T>>(&body_string) {
                         Ok(response) => {
                             return Ok(response);
@@ -163,11 +162,12 @@ where
                         }
                     };
                 }
+                let body_string = response.text().await?;
 
-                response
-                    .json::<GraphQlResponse<T>>()
-                    .await
-                    .map_err(CynicReqwestError::ReqwestError)
+                match serde_json::from_str::<GraphQlResponse<T>>(&body_string) {
+                    Ok(response) => Ok(response),
+                    Err(_) => Err(CynicReqwestError::ErrorResponse(status, body_string)),
+                }
             }
             Err(e) => Err(CynicReqwestError::ReqwestError(e)),
         }
