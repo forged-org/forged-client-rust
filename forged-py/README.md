@@ -9,4 +9,6 @@ from forged import Forged
 
 async def main():
     await Forged.upload_value("my_block", 10.0)
+    blocks = await Forged.blocks()
+    assert blocks["my_block"] == 10.0
 ```
