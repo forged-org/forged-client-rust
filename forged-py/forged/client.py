@@ -90,6 +90,12 @@ class Forged:
         async with cls(token, url) as client:
             await client.upload_value(name, value)
 
+    @classmethod
+    async def blocks(cls, token=None, url=DEFAULT_FORGED_API_ENDPOINT):
+        """ Get all of the blocks for the current device. """
+        async with cls(token, url) as client:
+            return await client.blocks()
+
 
 class ForgedSession:
     """ An asynchronous connection with the forged.dev run. """
@@ -114,9 +120,38 @@ class ForgedSession:
         self.project_id = project_id
 
 
+    async def blocks(self):
+        blocks_query = gql.gql("""
+        query getBlocks {
+            currentProvisioner {
+                currentRun {
+                    blocks {
+                        dataDecoded
+                        schema {
+                            name
+                        }
+                    }
+                }
+            }
+        }
+        """)
+
+        query = await self.session.execute(blocks_query)
+
+        blocks = {}
+        for block in query['currentProvisioner']['currentRun']['blocks']:
+            data = block['dataDecoded']
+            blocks[block['schema']['name']] = block['dataDecoded'][list(data.keys())[0]]
+
+        return blocks
+
+
     async def upload_value(self, name: str, value: Union[float, int, str]):
         """ Upload a block that contains a single value. """
-        return await self.upload_block(name, {'value': value})
+        try:
+            upload = await self.upload_block(name, {'value': value})
+        except gql.transport.exceptions.TransportQueryError as error:
+            logging.warning('Failed to upload %s: %s', name, error)
 
 
     async def upload_block(self, name: str, data: Dict):
