@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "forged-client"
 description = "Forged.dev Client library"
-version = "0.0.1"
+version = "0.1.0"
 readme = "README.md"
 authors = [
     { name = "Ryan Summers", email = "ryan.summers@vertigo-designs.com" },
@@ -20,9 +20,7 @@ classifiers = [
     "Topic :: System :: Hardware",
 ]
 keywords = ["api", "client", "database", "embedded"]
-dependencies = [
-    "gql[all]"
-]
+dependencies = ["gql[all]"]
 
 [project.urls]
 Homepage = "https://forged.dev"
