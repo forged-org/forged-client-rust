@@ -110,11 +110,17 @@ impl Client {
             return Ok(HashMap::default());
         };
 
-        Ok(HashMap::from_iter(
-            run.blocks
-                .into_iter()
-                .map(|block| (block.schema.name, block.data_decoded)),
-        ))
+        Ok(HashMap::from_iter(run.blocks.into_iter().map(|block| {
+            (
+                block.schema.name,
+                block
+                    .data_decoded
+                    .get("value")
+                    .or(block.data_decoded.get("values"))
+                    .unwrap()
+                    .to_owned(),
+            )
+        })))
     }
 
     /// Execute a query with a file upload to the forged API.
