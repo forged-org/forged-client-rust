@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 pub use queries::*;
 
-#[cynic::schema_for_derives(file = "schema.graphql", module = "schema")]
+#[cynic::schema_for_derives(file = "../schema.graphql", module = "schema")]
 pub mod queries {
     use super::schema;
     use forged::cynic;
@@ -142,7 +142,7 @@ pub mod queries {
 }
 
 mod schema {
-    cynic::use_schema!("schema.graphql");
+    cynic::use_schema!("../schema.graphql");
 }
 
 impl_scalar!(forged::Upload, schema::Upload);
