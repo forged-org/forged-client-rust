@@ -1,8 +1,10 @@
 pub use cynic;
 
+mod blocks;
+
 use std::{collections::HashMap, future::Future, pin::Pin};
 
-use cynic::{http::CynicReqwestError, GraphQlError, GraphQlResponse, Operation};
+use cynic::{http::CynicReqwestError, GraphQlError, GraphQlResponse, Operation, QueryBuilder};
 use regex::Regex;
 use reqwest::multipart;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -24,6 +26,19 @@ pub struct Client {
     instance_url: String,
 }
 
+impl Default for Client {
+    fn default() -> Self {
+        Self {
+            token: std::env::var("FORGED_API_TOKEN").unwrap_or_else(|_| {
+                log::info!("No Forged API token found");
+                "".to_string()
+            }),
+            instance_url: std::env::var("FORGED_API_URL")
+                .unwrap_or_else(|_| DEFAULT_API_URL.to_string()),
+        }
+    }
+}
+
 impl Client {
     /// Create a client to the forged.dev API.
     ///
@@ -34,6 +49,11 @@ impl Client {
             token,
             instance_url: DEFAULT_API_URL.to_string(),
         }
+    }
+
+    /// Create a client to the forged.dev API.
+    pub fn token(self, token: String) -> Self {
+        Self { token, ..self }
     }
 
     /// Specify a custom API endpoint for the client
@@ -77,6 +97,24 @@ impl Client {
         } else {
             unreachable!()
         }
+    }
+
+    /// Get all of the uploaded blocks for the current run.
+    ///
+    /// # Returns
+    /// A map of the blocks that currently exist for the run.
+    pub async fn blocks(&self) -> Result<HashMap<String, serde_json::Value>, Error> {
+        let result = self.run_query(blocks::QueryBlocks::build(())).await?;
+
+        let Some(run) = result.current_provisioner.current_run else {
+            return Ok(HashMap::default());
+        };
+
+        Ok(HashMap::from_iter(
+            run.blocks
+                .into_iter()
+                .map(|block| (block.schema.name, block.data_decoded)),
+        ))
     }
 
     /// Execute a query with a file upload to the forged API.
