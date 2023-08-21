@@ -1,25 +1,60 @@
 #!/usr/bin/python3
+"""
+Description: Provides an example to query all of the forged devices in a project.
+"""
 import argparse
 import asyncio
 import gql
 from forged import Forged
 
+# The number of devices to query each time
+PAGE_SIZE = 200
 
-# TODO: This will be limited, and should technically iterate across the devices using pagination
+# The raw GraphQL query.
 id_query = gql.gql("""
-    query GetDeviceIds {
+    query GetDeviceIds ($cursor: String, $first: Int!) {
         currentProvisioner {
             project {
                 name
-                devices {
+                devices (after: $cursor, first: $first) {
+                    edges {
+                        cursor
+                    }
                     nodes {
                         id
                         name
+                    }
+                    pageInfo {
+                        hasNextPage
                     }
                 }
             }
         }
     }""")
+
+
+async def fetch_all(client):
+    """ Fetch all of the device IDs from a project. """
+    devices = []
+    result = await client.session.execute(id_query, variable_values={'first': PAGE_SIZE})
+    result_devices = result["currentProvisioner"]["project"]["devices"]
+    project_name = result["currentProvisioner"]["project"]["name"]
+    devices += result_devices["nodes"]
+
+    # Loop over the Relay connection and collect all of the pages of devices.
+    while result_devices["pageInfo"]["hasNextPage"]:
+        result = await client.session.execute(id_query,
+            variable_values={
+                'cursor': result_devices["edges"][-1]["cursor"],
+                'first': PAGE_SIZE
+            })
+
+        # Add the current page to the list.
+        result_devices = result["currentProvisioner"]["project"]["devices"]
+        devices += result_devices["nodes"]
+
+    # Return the devices and project name.
+    return devices, project_name
 
 
 async def main():
@@ -29,16 +64,11 @@ async def main():
                         help='The provisioner token. FORGED_API_TOKEN will be probed from the '
                              'environment if not provided.')
 
-    parser.add_argument('--num-devices', type=int, default=10, help='The number of devices to generate')
-    parser.add_argument('--max-runs-per-device', type=int, default=3, help='The maximum number of device runs')
-
     args = parser.parse_args()
     async with Forged(args.token, url=args.api) as client:
-        response = await client.session.execute(id_query)
+        devices, project_name = await fetch_all(client)
 
-    project = response["currentProvisioner"]["project"]
-    devices = project["devices"]["nodes"]
-    print(f'All devices for {project["name"]} ({len(devices)} in total)')
+    print(f'All devices for {project_name} ({len(devices)} in total)')
     for device in devices:
         print(f'{device["id"]}: {device["name"]}')
 

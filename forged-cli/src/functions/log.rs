@@ -65,6 +65,10 @@ pub async fn log(client: &mut forged::Client, options: LogOption) -> Result<()> 
         }
 
         LogOption::Entry { level, message } => {
+            let input = [0; 60_000];
+            //let input = b"Hello \xF0\x90\x80World";
+            let message = String::from_utf8_lossy(&input[..]).into_owned();
+            print!("{:X?}", message.as_bytes());
             generate_log(client, &CreateLogArguments { level, message }).await?;
         }
     }
