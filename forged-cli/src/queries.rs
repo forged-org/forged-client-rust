@@ -9,7 +9,7 @@ pub mod queries {
     use forged::cynic;
     use uuid::Uuid;
 
-    cynic::impl_scalar!(serde_json::Value, schema::Json);
+    cynic::impl_scalar!(serde_json::Value, schema::JSON);
 
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(graphql_type = "MutationRoot")]
@@ -23,26 +23,19 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(
-        graphql_type = "MutationRoot",
-        argument_struct = "FinishDeviceArguments"
-    )]
+    #[cynic(graphql_type = "MutationRoot")]
     pub struct FinishRun {
-        #[arguments()]
         pub run_finish: Uuid,
     }
 
-    #[derive(cynic::FragmentArguments, Debug)]
-    pub struct FinishDeviceArguments {}
-
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "MutationRoot", argument_struct = "CreateLogArguments")]
+    #[cynic(graphql_type = "MutationRoot", variables = "CreateLogArguments")]
     pub struct CreateLog {
-        #[arguments(level=&args.level, message=&args.message)]
+        #[arguments(level: $level, message: $message)]
         pub log_create: Log,
     }
 
-    #[derive(cynic::FragmentArguments, Debug)]
+    #[derive(cynic::QueryVariables, Debug)]
     pub struct CreateLogArguments {
         pub level: String,
         pub message: String,
@@ -58,6 +51,7 @@ pub mod queries {
     pub struct Chip {
         pub id: Uuid,
         pub name: String,
+        pub binaries: Vec<Binary>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
@@ -81,21 +75,37 @@ pub mod queries {
     #[derive(cynic::QueryFragment, Debug)]
     pub struct Binary {
         pub id: Uuid,
+        pub version_major: i32,
+        pub version_minor: i32,
+        pub version_patch: i32,
         pub parts: Vec<BinaryPart>,
     }
 
-    #[derive(cynic::QueryFragment, Debug)]
+    impl Binary {
+        pub fn version(&self) -> String {
+            format!(
+                "{}.{}.{}",
+                self.version_major, self.version_minor, self.version_patch
+            )
+        }
+    }
+
+    #[derive(cynic::QueryFragment, Clone, Debug)]
     pub struct BinaryPart {
         pub id: Uuid,
         pub kind: BinaryKind,
         pub memory_offset: Option<i32>,
-        pub analysis: BinaryPartAnalysis,
-        pub image: Vec<i32>,
+        pub analysis: Option<BinaryPartAnalysis>,
     }
 
-    #[derive(cynic::QueryFragment, Debug)]
-    pub struct BinaryPartAnalaysis {
-        nvm_size: i32,
+    #[derive(cynic::QueryFragment, Debug, Clone)]
+    pub struct BinaryAnalysis {
+        pub nvm_size: i32,
+    }
+
+    #[derive(cynic::QueryFragment, Debug, Clone)]
+    pub struct BinaryPartAnalysis {
+        pub nvm_size: i32,
     }
 
     #[derive(cynic::Enum, Debug, Clone)]
@@ -106,16 +116,13 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(
-        graphql_type = "MutationRoot",
-        argument_struct = "CreateAttachmentArguments"
-    )]
+    #[cynic(graphql_type = "MutationRoot", variables = "CreateAttachmentArguments")]
     pub struct CreateAttachment {
-        #[arguments(data=&args.data)]
+        #[arguments(data: $data)]
         pub attachment_create: Attachment,
     }
 
-    #[derive(cynic::FragmentArguments, Debug)]
+    #[derive(cynic::QueryVariables, Debug)]
     pub struct CreateAttachmentArguments {
         pub data: forged::Upload,
     }
@@ -126,16 +133,13 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(
-        graphql_type = "MutationRoot",
-        argument_struct = "CreateBlockArguments"
-    )]
+    #[cynic(graphql_type = "MutationRoot", variables = "CreateBlockArguments")]
     pub struct CreateBlock {
-        #[arguments(schema_name=&args.schema_name, data=&args.data)]
+        #[arguments(schemaName: $schema_name, data: $data)]
         pub block_create: Block,
     }
 
-    #[derive(cynic::FragmentArguments, Debug)]
+    #[derive(cynic::QueryVariables, Debug)]
     pub struct CreateBlockArguments {
         pub schema_name: String,
         pub data: serde_json::Value,
@@ -152,4 +156,4 @@ mod schema {
 }
 
 impl_scalar!(forged::Upload, schema::Upload);
-impl_scalar!(Uuid, schema::Uuid);
+impl_scalar!(Uuid, schema::UUID);

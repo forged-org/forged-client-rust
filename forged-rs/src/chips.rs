@@ -10,18 +10,23 @@ use futures_util::StreamExt;
 impl Client {
     pub async fn binary_part(
         &self,
+        chip_id: Uuid,
         binary_id: Uuid,
         part_id: Uuid,
-        update_handler: Option<impl Fn(f64)>,
+        update_handler: Option<fn(f64)>,
     ) -> Result<Vec<u8>, Error> {
         // Query the part hash
         let result = self
-            .run_query(QueryBinaryPartHash::build(PartHashArguments { binary_id }))
+            .run_query(QueryBinaryPartHash::build(PartHashArguments {
+                chip_id,
+                binary_id,
+            }))
             .await?;
 
         let Some(part) = result
             .current_provisioner
             .project
+            .chip
             .binary
             .parts
             .iter()
@@ -38,7 +43,7 @@ impl Client {
         &self,
         project_id: Uuid,
         part: &BinaryPart,
-        update_handler: Option<impl Fn(f64)>,
+        update_handler: Option<fn(f64)>,
     ) -> Result<Vec<u8>, Error> {
         let url = format!(
             "{api_url}/project/{project_id}/binary/{binary_id}/part/{part_id}",
@@ -99,12 +104,13 @@ impl Client {
             data.extend(&chunk);
             let new = core::cmp::min(downloaded + (chunk.len() as u64), total_size);
             downloaded = new;
-            if let Some(update) = &update_handler {
-                update(downloaded as f64 / total_size as f64)
+            if let Some(handler) = &update_handler {
+                handler(new as f64 / total_size as f64);
             }
         }
-        if let Some(update) = update_handler {
-            update(1.0)
+
+        if let Some(handler) = &update_handler {
+            handler(1.0)
         }
 
         if let Some(cache_folder) = &self.cache_folder {
@@ -141,9 +147,16 @@ pub mod queries {
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(variables = "PartHashArguments")]
     pub struct Project {
+        #[arguments(id: $chip_id)]
+        pub chip: Chip,
+        pub id: Uuid,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(variables = "PartHashArguments")]
+    pub struct Chip {
         #[arguments(id: $binary_id)]
         pub binary: Binary,
-        pub id: Uuid,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
@@ -160,6 +173,7 @@ pub mod queries {
 
     #[derive(cynic::QueryVariables, Debug)]
     pub struct PartHashArguments {
+        pub chip_id: Uuid,
         pub binary_id: Uuid,
     }
 }

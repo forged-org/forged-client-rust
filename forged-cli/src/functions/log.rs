@@ -34,7 +34,7 @@ fn parse_log_entry(line: &str) -> CreateLogArguments {
     }
 }
 
-async fn generate_log(client: &forged::Client, args: &CreateLogArguments) -> Result<()> {
+async fn generate_log(client: &forged::Client, args: CreateLogArguments) -> Result<()> {
     println!("🪵  Logging: [{}] {}", args.level, args.message);
     client.run_query(CreateLog::build(args)).await?;
     Ok(())
@@ -60,12 +60,12 @@ pub async fn log(client: &mut forged::Client, options: LogOption) -> Result<()> 
             for line in BufReader::new(input).lines() {
                 let parsed_log =
                     parse_log_entry(&line.map_err(|e| anyhow!("Failed to read line: {e}"))?);
-                generate_log(client, &parsed_log).await?;
+                generate_log(client, parsed_log).await?;
             }
         }
 
         LogOption::Entry { level, message } => {
-            generate_log(client, &CreateLogArguments { level, message }).await?;
+            generate_log(client, CreateLogArguments { level, message }).await?;
         }
     }
 
