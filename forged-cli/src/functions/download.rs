@@ -145,7 +145,8 @@ async fn run_flash_download(
             .await?;
 
         println!(
-            "📦 Flashing part {index}/{n_parts}{}",
+            "📦 Flashing part {}/{n_parts}{}",
+            index + 1,
             part.analysis
                 .map(|analysis| format!(" ({} bytes)", analysis.nvm_size))
                 .unwrap_or_default()
