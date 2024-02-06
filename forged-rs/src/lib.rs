@@ -1,6 +1,7 @@
 pub use cynic;
 
 mod blocks;
+mod chips;
 
 use std::{collections::HashMap, future::Future, pin::Pin};
 
@@ -18,16 +19,36 @@ pub enum Error {
     Graphql(#[from] GraphQlError<serde::de::IgnoredAny>),
     #[error("An error with cynic occured")]
     Cynic(#[from] CynicReqwestError),
+
+    #[error("An HTTP Request error occured")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error("An API error occurred")]
+    Api(#[from] anyhow::Error),
 }
 
 /// A client to interact with the forged.dev API.
 pub struct Client {
     token: String,
     instance_url: String,
+    cache_folder: Option<std::path::PathBuf>,
 }
 
 impl Default for Client {
     fn default() -> Self {
+        // TODO: Handle non-existent home directory
+        let mut cache_folder = home::home_dir().map(|mut dir| {
+            dir.push(".forged");
+            dir
+        });
+
+        if let Some(folder) = cache_folder.clone() {
+            if let Err(e) = std::fs::create_dir_all(folder) {
+                log::warn!("Failed to create cache folder. Caching disabled: {e}");
+                cache_folder = None
+            }
+        }
+
         Self {
             token: std::env::var("FORGED_API_TOKEN").unwrap_or_else(|_| {
                 log::info!("No Forged API token found");
@@ -35,6 +56,8 @@ impl Default for Client {
             }),
             instance_url: std::env::var("FORGED_API_URL")
                 .unwrap_or_else(|_| DEFAULT_API_URL.to_string()),
+
+            cache_folder,
         }
     }
 }
@@ -48,6 +71,7 @@ impl Client {
         Self {
             token,
             instance_url: DEFAULT_API_URL.to_string(),
+            ..Default::default()
         }
     }
 
@@ -65,8 +89,8 @@ impl Client {
     /// This is intended only to be used for development or locally-hosted forged.dev
     pub fn api(self, instance_url: String) -> Self {
         Self {
-            token: self.token,
             instance_url,
+            ..self
         }
     }
 

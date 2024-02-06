@@ -54,28 +54,28 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "Provisioner")]
-    pub struct ProvisionerBinary {
-        pub project: ProjectBinary,
-    }
-
-    #[derive(cynic::QueryFragment, Debug)]
     #[cynic(graphql_type = "Chip")]
     pub struct Chip {
+        pub id: Uuid,
         pub name: String,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "Project")]
-    pub struct ProjectBinary {
-        pub binary_newest: Option<Binary>,
-        pub chip: Chip,
+    #[cynic(graphql_type = "QueryRoot")]
+    pub struct Chips {
+        pub current_provisioner: ProvisionerProjectChips,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "QueryRoot")]
-    pub struct BinaryNewest {
-        pub current_provisioner: ProvisionerBinary,
+    #[cynic(graphql_type = "Project")]
+    pub struct ProjectChips {
+        pub chips: Vec<Chip>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(graphql_type = "Provisioner")]
+    pub struct ProvisionerProjectChips {
+        pub project: ProjectChips,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
@@ -89,7 +89,13 @@ pub mod queries {
         pub id: Uuid,
         pub kind: BinaryKind,
         pub memory_offset: Option<i32>,
+        pub analysis: BinaryPartAnalysis,
         pub image: Vec<i32>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    pub struct BinaryPartAnalaysis {
+        nvm_size: i32,
     }
 
     #[derive(cynic::Enum, Debug, Clone)]
