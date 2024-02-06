@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Command::Start => start(&mut client).await?,
-        Command::Download => download(&mut client).await?,
+        Command::Download { chip, version } => download(&mut client, chip, version).await?,
         Command::Log(option) => log(&mut client, option).await?,
         Command::Attach { file_path } => attach(&mut client, file_path).await?,
         Command::Block { data, schema_name } => block(&mut client, schema_name, data).await?,
@@ -52,6 +52,7 @@ pub enum Error {
     Probe(#[from] probe_rs::Error),
     FlashOperation(#[from] probe_rs_cli_util::common_options::OperationError),
     Other(#[from] anyhow::Error),
+    Semver(#[from] semver::Error),
 }
 
 impl Display for Error {
@@ -64,6 +65,7 @@ impl Display for Error {
             }
             Error::Other(error) => writeln!(f, "{error}"),
             Error::FlashOperation(error) => writeln!(f, "{error}"),
+            Error::Semver(error) => writeln!(f, "Version format error: {error}"),
         }
     }
 }

@@ -24,15 +24,20 @@ type Attachment {
 
 type Binary {
 	id: UUID!
-	projectId: UUID!
+	creationDate: DateTime!
+	deletionDate: DateTime
+	chipId: UUID!
+	chip: Chip!
+	version: String!
 	versionMajor: Int!
 	versionMinor: Int!
 	versionPatch: Int!
+	analysis: BinaryAnalysis
+	active: Boolean!
 	parts: [BinaryPart!]!
-	project: Project!
-	"""
-	Get the size of the binary non-volatile memory in bytes.
-	"""
+}
+
+type BinaryAnalysis {
 	nvmSize: Int!
 }
 
@@ -48,11 +53,15 @@ type BinaryPart {
 	binaryId: UUID!
 	kind: BinaryKind!
 	memoryOffset: Int
-	image: [Int!]!
 	imageHash: [Int!]!
-	sizeInMemory: Int!
+	analysis: BinaryPartAnalysis
 	creationDate: NaiveDateTime!
 	changeDate: NaiveDateTime!
+}
+
+type BinaryPartAnalysis {
+	rtt: RttAnalysis!
+	nvmSize: Int!
 }
 
 type Block {
@@ -79,10 +88,8 @@ type Block {
 	
 	This automatically transfers the stored data into a slice of bytes which can be written
 	to device memory.
-	
-	Uses [`BlockSchema::to_bytes`] to transform the data.
 	"""
-	byteSlice: [Int!]!
+	byteSlice(chipId: UUID!): [Int!]!
 }
 
 type BlockSchema {
@@ -90,43 +97,69 @@ type BlockSchema {
 	isDeviceIdentifier: Boolean!
 	projectId: UUID!
 	name: String!
+	displayName: String!
 	schema: String!
 	generator: String
-	toBytes: String
-	fromBytes: String
-	memoryAddress: Int
-	length: Int
-	creationDate: NaiveDateTime!
-	deactivationDate: NaiveDateTime
-	source: BlockSource!
+	memorySource: MemoryEndpoint
+	memorySink(chipId: UUID!): MemoryEndpoint!
+	memorySinks: [MemoryEndpoint!]!
+	creationDate: DateTime!
 	active: Boolean!
+	deletionDate: DateTime
 	"""
 	Determine if this schema can be used for requirements.
 	"""
 	supportsRequirements: Boolean!
-}
-
-"""
-Indicates the source of data for a block.
-"""
-enum BlockSource {
-	INPUT
-	EXTERNAL
-	DERIVED
+	requirements: [Requirement!]!
 }
 
 
 type Chip {
+	id: UUID!
+	projectId: UUID!
 	name: String!
-	nvmSize: Int!
+	partNumber: String!
+	nvmSize: Int
+	active: Boolean!
+	creationDate: DateTime!
+	changeDate: DateTime!
+	deletionDate: DateTime
+	"""
+	Returns true if the chip part number is natively supported by probe-rs.
+	"""
+	isSupported: Boolean!
+	"""
+	Returns the newest binary for given project id according to semver.
+	"""
+	binaryNewest: Binary
+	binaries: [Binary!]!
+	binary(id: UUID!): Binary!
 }
+
+input ChipEndpoint {
+	chipId: UUID!
+	address: Int!
+	length: Int!
+	transform: String!
+}
+
+type DataBlock {
+	blockSchema: BlockSchema!
+}
+
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
 
 type Device {
 	id: UUID!
 	name: String
 	projectId: UUID!
-	creationDate: NaiveDateTime!
-	changeDate: NaiveDateTime!
+	creationDate: DateTime!
+	changeDate: DateTime!
 	project: Project!
 	runs: [Run!]!
 	"""
@@ -135,6 +168,14 @@ type Device {
 	If no UUID is given, the most recent run is returned.
 	"""
 	run(id: UUID): Run!
+	"""
+	Whether or not the device is active.
+	"""
+	active: Boolean!
+	"""
+	The date when the device was deactivated.
+	"""
+	deletionDate: DateTime
 }
 
 type DeviceConnection {
@@ -158,13 +199,13 @@ An edge in a connection.
 """
 type DeviceEdge {
 	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-	"""
 	The item at the end of the edge
 	"""
 	node: Device!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
 }
 
 type Family {
@@ -173,11 +214,80 @@ type Family {
 	owner: Owner!
 }
 
+input FinishStepData {
+	binaryId: UUID
+}
+
+type FlashChip {
+	chipId: UUID!
+	command: String
+	chip: Chip!
+}
+
 
 type Group {
 	id: UUID!
+	name: String!
+	users: [User!]!
+	creationDate: DateTime!
+	changeDate: DateTime!
+	projects: [Project!]!
 }
 
+
+input InputDataBlock {
+	blockSchemaId: UUID
+}
+
+input InputFlashChip {
+	chipId: UUID
+	command: String
+}
+
+input InputIntegrationsSettings {
+	telegram: InputTelegramSettings!
+	matrix: InputMatrixSettings!
+}
+
+input InputMatrixSettings {
+	rooms: [String!]!
+}
+
+input InputPlaybook {
+	version: Int
+	stations: [InputStation!]!
+}
+
+input InputProjectSettings {
+	integrations: InputIntegrationsSettings!
+}
+
+input InputRunCommand {
+	command: String
+	directory: String
+}
+
+input InputStation {
+	name: String
+	color: String
+	steps: [InputStep!]!
+}
+
+input InputStep {
+	id: UUID!
+	label: String
+	kind: InputStepKind!
+}
+
+input InputStepKind {
+	dataBlock: InputDataBlock
+	flashChip: InputFlashChip
+	runCommand: InputRunCommand
+}
+
+input InputTelegramSettings {
+	chatIds: [Int!]!
+}
 
 input InsertBinaryPart {
 	name: String
@@ -186,6 +296,11 @@ input InsertBinaryPart {
 	image: Upload!
 }
 
+
+type IntegrationsSettings {
+	telegram: TelegramSettings!
+	matrix: MatrixSettings!
+}
 
 """
 A scalar that can represent any JSON value.
@@ -197,8 +312,26 @@ type Log {
 	runId: UUID!
 	level: String!
 	message: String!
-	creationDate: NaiveDateTime!
+	creationDate: DateTime!
 	run: Run!
+}
+
+type MatrixSettings {
+	rooms: [String!]!
+}
+
+scalar MemoryAddress
+
+type MemoryEndpoint {
+	id: UUID!
+	schema: BlockSchema!
+	chip: Chip!
+	sink: Boolean!
+	address: MemoryAddress!
+	length: Int!
+	creationDate: DateTime!
+	active: Boolean!
+	deletionDate: DateTime
 }
 
 type MutationRoot {
@@ -206,7 +339,11 @@ type MutationRoot {
 	Creates a new device for given `project_id` and returns the device.
 	"""
 	deviceCreate: Device!
-	signIn(username: String!, password: String!): String!
+	"""
+	Delete a device, making it no longer appear as being linked to the project.
+	"""
+	deviceDelete(id: UUID!): UUID!
+	signIn(email: String!, password: String!): String!
 	"""
 	Sign in with a given OAuth provider.
 	
@@ -218,8 +355,8 @@ type MutationRoot {
 	This nonce is only required for real OIDC providers and not all OAuth providers.
 	"""
 	signInWithOauth(provider: String!, code: String!, csrfToken: String, nonce: String): String!
-	refresh(token: String!): String!
-	userCreate(username: String!, email: String!, password: String!): User!
+	refresh(token: String!, impersonate: UUID): String!
+	userCreate(email: String!, password: String!): User!
 	userConfirm(token: String!): Boolean!
 	userApprove(id: UUID!): UUID!
 	userResendConfirmCode(email: String!): Boolean!
@@ -230,16 +367,36 @@ type MutationRoot {
 	"""
 	changePassword(currentPassword: String!, newPassword: String!): Boolean!
 	"""
-	Creates a new binary record and retursn the ID of the created record.
+	Creates a new binary with the specified chip
 	"""
-	binaryCreate(projectId: UUID!, version: String!, parts: [InsertBinaryPart!]!): Binary!
+	binaryCreate(chipId: UUID!, version: String!, parts: [InsertBinaryPart!]!): Binary!
+	"""
+	Delete a binary, making it no longer appear as being linked to the project.
+	"""
+	binaryDelete(id: UUID!): UUID!
 	"""
 	Creates a new project for a user and returns the project upon successful creation.
 	"""
-	projectCreate(name: String!, chipName: String!): Project!
-	provisionerCreate(name: String!, projectId: UUID!): Provisioner!
+	projectCreate(name: String!, groupOwner: UUID): Project!
+	"""
+	Delete a project, making it no longer appear as being linked to the user.
+	"""
+	projectDelete(id: UUID!): UUID!
+	"""
+	Change the owner of a project to a new user or group
+	"""
+	projectTransfer(id: UUID!, ownerId: UUID!): UUID!
+	"""
+	Update settings on a project.
+	"""
+	projectSettingsUpdate(id: UUID!, settings: InputProjectSettings!): UUID!
+	provisionerCreate(name: String!, station: String!, projectId: UUID!): Provisioner!
 	provisionerRename(id: UUID!, name: String!): Provisioner!
-	provisionerDeactivate(id: UUID!): Provisioner!
+	provisionerAssignStation(id: UUID!, station: String!): Provisioner!
+	"""
+	Delete a provisioner, making it no longer appear as being linked to the project.
+	"""
+	provisionerDelete(id: UUID!): UUID!
 	provisionerRegenerateToken(id: UUID!): Provisioner!
 	"""
 	Creates a new log for given `project_id` and returns the log.
@@ -264,13 +421,16 @@ type MutationRoot {
 	"""
 	Creates a new block_schema and returns the block_schema.
 	"""
-	blockSchemaCreate(projectId: UUID!, name: String!, schema: String!, generator: String, toBytes: String, fromBytes: String, memoryAddress: Int, length: Int, source: BlockSource!, isDeviceIdentifier: Boolean!): BlockSchema!
+	blockSchemaCreate(projectId: UUID!, name: String!, schema: String!, generator: String, memorySource: ChipEndpoint, memorySinks: [ChipEndpoint!]!, isDeviceIdentifier: Boolean!): BlockSchema!
 	"""
 	Re-name a block schema
 	"""
 	blockSchemaRename(id: UUID!, name: String!): UUID!
 	blockSchemaSetIdentifier(id: UUID!, identifier: Boolean!): UUID!
-	blockSchemaDeactivate(id: UUID!): BlockSchema!
+	"""
+	Delete a block schema, making it no longer appear as being linked to the project.
+	"""
+	blockSchemaDelete(id: UUID!): UUID!
 	"""
 	Creates a new block for given `project_id` and returns the block.
 	"""
@@ -279,7 +439,11 @@ type MutationRoot {
 	"""
 	Creates a new run for the currently in-session device and returns the run.
 	"""
-	runCreate: Run!
+	runCreate(station: String!): Run!
+	"""
+	Creates a new run for an existing device and returns the run.
+	"""
+	runCreateFor(identifier: String!, station: String!): Run!
 	"""
 	Finish provisioning for a run.
 	"""
@@ -291,15 +455,31 @@ type MutationRoot {
 	"""
 	Start a provisioning step on the currently-active run.
 	"""
-	finishStep(passed: Boolean!): UUID!
+	finishStep(passed: Boolean!, data: FinishStepData): UUID!
 	"""
 	Create a new requirement for given `project_id`.
 	"""
 	requirementCreate(projectId: UUID!, schemaId: UUID!, name: String!, description: String, lowerLimit: Float, inclusiveLower: Boolean!, upperLimit: Float, inclusiveUpper: Boolean!): Requirement!
 	"""
-	Deactivate a requirement such that it is no longer checked.
+	Delete a requirement,making it no longer linked to the project.
 	"""
-	requirementDeactivate(id: UUID!): UUID!
+	requirementDelete(id: UUID!): UUID!
+	"""
+	Updates the draft playbook with the given new playbook.
+	"""
+	playbookUpdate(projectId: UUID!, playbook: InputPlaybook!): Boolean!
+	playbookSave(projectId: UUID!): Int!
+	"""
+	Creates a new project for a user and returns the project upon successful creation.
+	"""
+	chipCreate(projectId: UUID!, name: String!, partNumber: String!): Chip!
+	"""
+	Delete a chip, making it no longer appear as being linked to the project.
+	"""
+	chipDelete(id: UUID!): UUID!
+	groupCreate(name: String!): Group!
+	groupAddUser(groupId: UUID!, userEmail: String!): UUID!
+	groupRemoveUser(groupId: UUID!, userId: UUID!): UUID!
 }
 
 """
@@ -310,6 +490,46 @@ ISO 8601 combined date and time without timezone.
 * `2015-07-01T08:59:60.123`,
 """
 scalar NaiveDateTime
+
+type Notification {
+	id: UUID!
+	projectId: UUID
+	event: JSON!
+	retry: Int!
+	creationDate: DateTime!
+	deliveryDate: DateTime
+	project: Project
+}
+
+type NotificationConnection {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [NotificationEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [Notification!]!
+	numNotifications: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type NotificationEdge {
+	"""
+	The item at the end of the edge
+	"""
+	node: Notification!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
 
 type OauthData {
 	authUrl: String!
@@ -350,16 +570,32 @@ type PaymentMethod {
 	id: String!
 }
 
+type Playbook {
+	projectId: UUID!
+	version: Int
+	stations: [Station!]!
+	station(name: String!): Station
+	project: Project!
+}
+
 type Project {
 	id: UUID!
 	name: String!
-	chip: Chip!
-	binary(id: UUID!): Binary!
+	active: Boolean!
+	settings: ProjectSettings!
+	creationDate: DateTime!
+	changeDate: DateTime!
+	deletionDate: DateTime
+	chip(id: UUID!): Chip!
 	"""
-	Returns the newest binary for given project id according to semver.
+	Get the currently-active playbook for the project.
 	"""
-	binaryNewest: Binary
-	binaries: [Binary!]!
+	playbook: Playbook!
+	"""
+	Get all playbooks registered with the project.
+	"""
+	playbooks: [Playbook!]!
+	chips: [Chip!]!
 	device(id: UUID!): Device!
 	devices(after: String, first: Int, filter: String): DeviceConnection!
 	owner: Owner!
@@ -369,6 +605,11 @@ type Project {
 	blockSchema(id: UUID!): BlockSchema!
 	requirements: [Requirement!]!
 	requirement(id: UUID!): Requirement!
+	notifications(after: String, first: Int, filter: String): NotificationConnection!
+}
+
+type ProjectSettings {
+	integrations: IntegrationsSettings!
 }
 
 type Provisioner {
@@ -378,11 +619,13 @@ type Provisioner {
 	name: String!
 	token: String
 	active: Boolean!
-	creationDate: NaiveDateTime!
-	changeDate: NaiveDateTime!
+	creationDate: DateTime!
+	changeDate: DateTime!
 	project: Project!
 	currentDevice: Device
 	currentRun: Run
+	station: String!
+	steps: [Step!]!
 }
 
 type ProvisionerReleases {
@@ -396,6 +639,11 @@ type QueryRoot {
 	config: AppConfig!
 	currentUser: User!
 	usersPendingApproval: [User!]!
+	users: [User!]!
+	"""
+	Lists all projects.
+	"""
+	projects: [Project!]!
 	"""
 	Returns a project with a certain `id`.
 	"""
@@ -428,6 +676,7 @@ type QueryRoot {
 	Returns the data that is required for the frontend to work.
 	"""
 	provisionerReleases: ProvisionerReleases!
+	group(id: UUID!): Group!
 }
 
 type Release {
@@ -453,11 +702,11 @@ type Requirement {
 	"""
 	The date that the requirement was created.
 	"""
-	creationDate: NaiveDateTime!
+	creationDate: DateTime!
 	"""
 	The date when the requirement was deactivated.
 	"""
-	deactivationDate: NaiveDateTime
+	deletionDate: DateTime
 	"""
 	Whether or not the requirement is active.
 	"""
@@ -493,26 +742,31 @@ type RequirementCheck {
 	requirementId: UUID!
 	blockId: UUID
 	passed: Boolean!
-	checkDate: NaiveDateTime!
+	checkDate: DateTime!
 	runId: UUID!
 	requirement: Requirement!
 	block: Block
 }
 
+type RttAnalysis {
+	headerLocation: Int
+}
+
 type Run {
 	id: UUID!
 	deviceId: UUID!
-	currentStep: String!
 	projectId: UUID!
-	currentStepStatus: StepStatus!
-	creationDate: NaiveDateTime!
-	changeDate: NaiveDateTime!
+	provisioner: Provisioner
+	station: String!
+	creationDate: DateTime!
+	changeDate: DateTime!
 	finished: Boolean!
 	device: Device!
 	logs: [Log!]!
 	attachments: [Attachment!]!
 	blocks: [Block!]!
 	block(id: UUID!): Block!
+	blockForSchema(schemaId: UUID!): Block
 	blockSchemas: [BlockSchema!]!
 	requirementChecks: [RequirementCheck!]!
 	requirements: [Requirement!]!
@@ -520,7 +774,52 @@ type Run {
 	Get the overall status of the run.
 	"""
 	runStatus: StepStatus!
+	steps: [RunStep!]!
+	"""
+	Reports any reasons for a run failure.
+	"""
+	errors: [String!]!
 }
+
+type RunCommand {
+	command: String
+	directory: String
+}
+
+type RunStep {
+	id: UUID!
+	runId: UUID!
+	stepId: UUID!
+	status: StepStatus!
+	station: String!
+	creationDate: DateTime!
+	changeDate: DateTime!
+	data: RunStepData!
+	step: Step!
+}
+
+type RunStepData {
+	binaryId: UUID
+	binary: Binary
+}
+
+type Station {
+	name: String!
+	color: String!
+	steps: [Step!]!
+}
+
+type Step {
+	id: UUID!
+	kind: StepKind!
+	position: Int!
+	station: String!
+	label: String
+	creationDate: NaiveDateTime!
+	changeDate: NaiveDateTime!
+}
+
+union StepKind = DataBlock | FlashChip | RunCommand
 
 enum StepStatus {
 	PENDING
@@ -544,6 +843,10 @@ type SubscriptionRoot {
 	"""
 	createDeviceEvent(token: String!, projectId: UUID!): Device!
 	"""
+	Yields a new requirement whenever one is created.
+	"""
+	createRequirementEvent(token: String!, projectId: UUID!): Requirement!
+	"""
 	Yields a new device whenever a new device is created.
 	"""
 	logEvent(token: String!, runId: UUID!): Log!
@@ -565,9 +868,22 @@ type Target {
 	name: String!
 }
 
+type TelegramSettings {
+	chatIds: [Int!]!
+}
+
 enum Tier {
+	"""
+	Only a very limited free featureset.
+	"""
 	FREE
+	"""
+	The basic service with all it's basic features.
+	"""
 	BASE
+	"""
+	The full featureset unlocked.
+	"""
 	FULL
 }
 
@@ -588,14 +904,13 @@ scalar Upload
 type User {
 	id: UUID!
 	stripeCustomerId: String
-	username: String!
 	email: String!
 	tier: Tier!
 	admin: Boolean!
 	userType: UserType!
 	oauthUser: OauthUser
-	creationDate: NaiveDateTime!
-	changeDate: NaiveDateTime!
+	creationDate: DateTime!
+	changeDate: DateTime!
 	projects: [Project!]!
 	families: [Family!]!
 	groups: [Group!]!
@@ -607,6 +922,8 @@ enum UserType {
 	OAUTH
 }
 
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: QueryRoot
 	mutation: MutationRoot

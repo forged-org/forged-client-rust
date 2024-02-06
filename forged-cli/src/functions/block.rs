@@ -11,7 +11,7 @@ pub async fn block(client: &mut forged::Client, schema_name: String, data: Value
     println!("{data:#}");
 
     client
-        .run_query(CreateBlock::build(&CreateBlockArguments {
+        .run_query(CreateBlock::build(CreateBlockArguments {
             schema_name,
             data,
         }))

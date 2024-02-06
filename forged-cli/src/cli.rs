@@ -26,7 +26,10 @@ pub enum Command {
     Start,
 
     /// Downloads the binary and device data to the target.
-    Download,
+    Download {
+        chip: Option<String>,
+        version: Option<String>,
+    },
 
     /// Creates a new log entry on the device in the current session.
     #[clap(subcommand)]
