@@ -52,6 +52,7 @@ pub enum Error {
     Probe(#[from] probe_rs::Error),
     FlashOperation(#[from] probe_rs_cli_util::common_options::OperationError),
     Other(#[from] anyhow::Error),
+    Semver(#[from] semver::Error),
 }
 
 impl Display for Error {
@@ -64,6 +65,7 @@ impl Display for Error {
             }
             Error::Other(error) => writeln!(f, "{error}"),
             Error::FlashOperation(error) => writeln!(f, "{error}"),
+            Error::Semver(error) => writeln!(f, "Version format error: {error}"),
         }
     }
 }

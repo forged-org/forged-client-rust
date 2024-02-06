@@ -51,6 +51,7 @@ pub mod queries {
     pub struct Chip {
         pub id: Uuid,
         pub name: String,
+        pub part_number: String,
         pub binaries: Vec<Binary>,
     }
 
@@ -82,11 +83,14 @@ pub mod queries {
     }
 
     impl Binary {
-        pub fn version(&self) -> String {
-            format!(
-                "{}.{}.{}",
-                self.version_major, self.version_minor, self.version_patch
-            )
+        pub fn version(&self) -> semver::Version {
+            semver::Version {
+                major: self.version_major as u64,
+                minor: self.version_minor as u64,
+                patch: self.version_patch as u64,
+                pre: Default::default(),
+                build: Default::default(),
+            }
         }
     }
 

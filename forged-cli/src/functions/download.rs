@@ -23,20 +23,27 @@ pub async fn download(
     chip: Option<String>,
     version: Option<String>,
 ) -> Result<()> {
-    println!("⛅ Grabbing binaries from the server ...");
-
     let query = client.run_query(Chips::build(())).await?;
     let chips = query.current_provisioner.project.chips;
+
+    let chips_string =
+        chips
+            .iter()
+            .map(|chip| chip.name.clone())
+            .fold(String::new(), |acc, chip| {
+                if acc.is_empty() {
+                    chip.to_string()
+                } else {
+                    format!("{acc}, {chip}")
+                }
+            });
 
     let chip = if let Some(chip_name) = chip {
         chips
             .iter()
             .find(|chip| chip.name == chip_name)
             .ok_or_else(|| {
-                anyhow!(
-                    "Chip {chip_name} not found. Available chips: {:?}",
-                    chips.iter().map(|chip| chip.name.clone())
-                )
+                anyhow!("Chip `{chip_name}` not found. Available chips: [ {chips_string} ]")
             })?
     } else {
         match chips.len() {
@@ -45,40 +52,56 @@ pub async fn download(
                     "No chips have been configured for this project. Add one to the project first."
                 )))
             }
-            1 => chips.iter().next().unwrap(),
-            _ => return Err(Error::Other(anyhow!(
-                "Multiple chips found for this project. Please specify one. Available chips: {:?}",
-                chips.iter().map(|chip| chip.name.clone())
-            ))),
+            1 => chips.first().unwrap(),
+            _ => {
+                return Err(Error::Other(anyhow!(
+                "Multiple chips found for this project. Please specify one. Available chips: [ {chips_string} ]"
+            )))
+            }
         }
     };
 
     let binaries = &chip.binaries;
     let binary = if let Some(version) = version {
+        let version = semver::Version::parse(&version)?;
         binaries
             .iter()
             .find(|bin| bin.version() == version)
             .ok_or_else(|| {
+                let mut versions: Vec<semver::Version> = binaries.iter().map(|bin| bin.version()).collect();
+                versions.sort();
+                versions.reverse();
+
                 anyhow!(
-                    "Binary version {version} not found for chip {}. Available versions: {:?}",
+                    "Binary version `{version}` not found for chip `{}`. Available versions: [ {} ]",
                     chip.name,
-                    binaries.iter().map(|bin| bin.version())
-                )
+                    versions.iter().fold(String::new(), |acc, version| {
+                        if acc.is_empty() {
+                            version.to_string()
+                        } else {
+                            format!("{acc}, {version}")
+                        }
+                    }
+                ))
             })?
     } else {
-        match binaries.len() {
-            0 => return Err(Error::Other(anyhow!(
-                "No binaries have been configured for chip {}. Add a binary to this chip first.",
+        // Otherwise, find the newest binary.
+        let Some(binary) = binaries.iter().max_by_key(|x| x.version()) else {
+            return Err(Error::Other(anyhow!(
+                "No binaries have been uploaded for chip {}",
                 chip.name
-            ))),
-            1 => binaries.iter().next().unwrap(),
-            _ => return Err(Error::Other(anyhow!(
-                "Multiple binaries found for chip {}. Please specify one. Available versions: {:?}",
-                chip.name,
-                binaries.iter().map(|bin| bin.version())
-            ))),
-        }
+            )));
+        };
+        binary
     };
+
+    println!(
+        " -> Flashing firmware v{} onto {} ({})",
+        binary.version(),
+        chip.name,
+        chip.part_number
+    );
+    println!("⛅ Grabbing binaries from the server ...");
 
     let result = run_flash_download(client, &chip, binary).await;
 
@@ -107,7 +130,7 @@ async fn run_flash_download(
     }
 
     // Create a new session
-    let mut session = probe.attach(&chip.name, probe_rs::Permissions::default())?;
+    let mut session = probe.attach(&chip.part_number, probe_rs::Permissions::default())?;
 
     let target = session.target();
 

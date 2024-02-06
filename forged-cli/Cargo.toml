@@ -29,3 +29,4 @@ probe-rs-cli-util = "0.13.0"
 thiserror = "1.0.30"
 dotenv = "0.15"
 uuid = { version = "1", features = ["serde"] }
+semver = "1"
