@@ -139,7 +139,6 @@ async fn run_flash_download(
 
     let n_parts = binary.parts.len();
     for (index, part) in binary.parts.clone().into_iter().enumerate() {
-        // TODO: Download the actual binary from the server
         let binary = client
             .binary_part(chip.id, binary.id, part.id, None)
             .await?;
