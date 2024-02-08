@@ -50,7 +50,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     Client(#[from] forged::Error),
     Probe(#[from] probe_rs::Error),
-    FlashOperation(#[from] probe_rs_cli_util::common_options::OperationError),
+    FlashOperation(#[from] probe_rs::flashing::FlashError),
     Other(#[from] anyhow::Error),
     Semver(#[from] semver::Error),
 }
