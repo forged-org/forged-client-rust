@@ -13,6 +13,12 @@ repository = "https://github.com/forged-org/forged-clients"
 categories = ["command-line-utilities", "database", "development-tools", "embedded"]
 keywords = ["forged", "cli", "hardware", "provision"]
 
+[package.metadata.wix]
+upgrade-guid = "854A6FE8-DD98-4FCD-91F6-DA5FD5338557"
+path-guid = "F38504B1-B27C-41FD-ADB0-EF523A3950E7"
+license = false
+eula = false
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
