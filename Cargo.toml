@@ -25,4 +25,5 @@ inherits = "release"
 lto = "thin"
 
 [workspace.metadata.dist.dependencies.apt]
-libudev-dev = "*"
+libudev-dev = '*'
+libudev1 = { stage = ["run"] }
