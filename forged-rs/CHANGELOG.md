@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.4.0 - 2024-02-08
+
 ### Added
 * Added a new `Client::binary_part()` API to download binary parts to the local machine and get
 their contents

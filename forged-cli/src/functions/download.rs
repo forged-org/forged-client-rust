@@ -1,18 +1,11 @@
-use std::{io::Cursor, path::Path};
+use indicatif::ProgressBar;
+use std::io::Cursor;
 
 use anyhow::anyhow;
 use cynic::QueryBuilder;
-use probe_rs::{
-    flashing::{BinOptions, FlashLoader},
-    Probe,
-};
+use probe_rs::flashing::{BinOptions, FlashLoader};
 
 use crate::Error;
-use probe_rs_cli_util::{
-    common_options::{CargoOptions, FlashOptions},
-    flash,
-};
-
 use crate::{
     queries::{Binary, Chip, Chips},
     Result,
@@ -118,10 +111,12 @@ async fn run_flash_download(
     chip: &Chip,
     binary: &Binary,
 ) -> Result<()> {
-    let probe = Probe::list_all()
+    let lister = probe_rs::Lister::new();
+    let probe = lister
+        .list_all()
         .get(0)
         .ok_or_else(|| anyhow!("No probe found"))?
-        .open()
+        .open(&lister)
         .map_err(probe_rs::Error::Probe)?;
     {
         let protocol_speed = probe.speed_khz();
@@ -139,17 +134,17 @@ async fn run_flash_download(
 
     let n_parts = binary.parts.len();
     for (index, part) in binary.parts.clone().into_iter().enumerate() {
-        let binary = client
-            .binary_part(chip.id, binary.id, part.id, None)
-            .await?;
-
         println!(
-            "📦 Flashing part {}/{n_parts}{}",
+            "📦 Downloading part {}/{n_parts}{}",
             index + 1,
             part.analysis
                 .map(|analysis| format!(" ({} bytes)", analysis.nvm_size))
                 .unwrap_or_default()
         );
+
+        let binary = client
+            .binary_part(chip.id, binary.id, part.id, None)
+            .await?;
 
         match part.kind {
             crate::queries::BinaryKind::Elf => loader
@@ -170,30 +165,68 @@ async fn run_flash_download(
         }
     }
 
-    let flash_options = FlashOptions {
-        disable_double_buffering: false,
-        version: false,
-        list_chips: false,
-        list_probes: false,
-        disable_progressbars: false,
-        reset_halt: false,
-        log: None,
-        restore_unwritten: true,
-        flash_layout_output_path: None,
-        elf: None,
-        work_dir: None,
-        cargo_options: CargoOptions::default(),
-        probe_options: probe_rs_cli_util::common_options::ProbeOptions {
-            allow_erase_all: true,
-            chip: None,
-            chip_description_path: None,
-            protocol: None,
-            probe_selector: None,
-            connect_under_reset: false,
-            speed: None,
-            dry_run: false,
-        },
-    };
-    flash::run_flash_download(&mut session, Path::new(""), &flash_options, loader, false)?;
+    let style = indicatif::ProgressStyle::default_bar()
+        .tick_chars("⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈✔")
+        .progress_chars("--")
+        .template("{msg:.green.bold} {spinner} [{elapsed_precise}] [{wide_bar}] {bytes:>8}/{total_bytes:>8} @ {bytes_per_sec:>10} (eta {eta:3})").expect("Error in progress bar creation. This is a bug, please report it.");
+
+    let multi_progress = indicatif::MultiProgress::new();
+    let erase_bar = multi_progress.add(
+        ProgressBar::new(0)
+            .with_style(style.clone())
+            .with_message("    Erasing"),
+    );
+    let program_bar = multi_progress.add(
+        ProgressBar::new(0)
+            .with_style(style.clone())
+            .with_message("Programming"),
+    );
+
+    let progress = probe_rs::flashing::FlashProgress::new(move |event| {
+        use probe_rs::flashing::ProgressEvent;
+        match event {
+            ProgressEvent::Initialized { flash_layout } => {
+                erase_bar.set_length(flash_layout.sectors().iter().map(|s| s.size() as u64).sum());
+                program_bar.set_length(flash_layout.pages().iter().map(|s| s.size() as u64).sum());
+            }
+            ProgressEvent::StartedErasing => {
+                let style = program_bar.style().progress_chars("##-");
+                erase_bar.set_style(style);
+                erase_bar.reset_elapsed();
+            }
+            ProgressEvent::StartedProgramming { length } => {
+                program_bar.set_length(length);
+                let style = program_bar.style().progress_chars("##-");
+                program_bar.set_style(style);
+                program_bar.reset_elapsed();
+            }
+            ProgressEvent::PageProgrammed { size, .. } => program_bar.inc(size as u64),
+            ProgressEvent::SectorErased { size, .. } => erase_bar.inc(size),
+            ProgressEvent::FinishedErasing => {
+                erase_bar.finish();
+            }
+            ProgressEvent::FailedProgramming => {
+                program_bar.abandon();
+            }
+            ProgressEvent::FailedErasing => {
+                erase_bar.abandon();
+            }
+            ProgressEvent::FinishedProgramming => {
+                program_bar.finish();
+            }
+            _ => {}
+        }
+    });
+
+    let mut options = probe_rs::flashing::DownloadOptions::default();
+    options.disable_double_buffering = false;
+    options.verify = true;
+    options.keep_unwritten_bytes = true;
+    options.dry_run = false;
+    options.progress = Some(progress);
+    options.skip_erase = false;
+
+    loader.commit(&mut session, options)?;
+
     Ok(())
 }
