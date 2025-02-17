@@ -8,7 +8,9 @@ Description: Utilities for uploading data to forged.dev test runs from custom te
 """
 import logging
 import os
+import socket
 from typing import Union, Dict
+import json
 
 import gql
 from gql.transport.aiohttp import AIOHTTPTransport
@@ -55,7 +57,7 @@ class Forged:
         self.session = None
 
 
-    async def __aenter__(self):
+    async def __aenter__(self, *args, **kwargs):
         return await ForgedSession._create(await self.client.__aenter__())
 
 
@@ -95,6 +97,32 @@ class Forged:
         """ Get all of the blocks for the current device. """
         async with cls(token, url) as client:
             return await client.blocks()
+
+    @classmethod
+    def user_input(cls, message: str, request_response=True) -> str:
+        """ Request user input during a run execution.
+
+        Args:
+            * `message` - The prompt message to display to the user.
+
+        Note: If there's no active forged run, this will use the built in `input()` function
+        instead.
+        """
+        tcp_endpoint = os.environ.get('FORGED_INPUT_SOCKET')
+
+        if tcp_endpoint:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            (host, port) = tcp_endpoint.split(':')
+            sock.connect((host, int(port)))
+
+            request = { 'message': message, 'response_requested': request_response}
+            payload = json.dumps(request)
+            sock.sendall(payload.encode('ascii'))
+
+            response = json.loads(sock.recv(256).decode('ascii'))
+            return response['message']
+        else:
+            return input(message)
 
 
 class ForgedSession:
@@ -179,3 +207,4 @@ class ForgedSession:
         })
 
         return result['blockCreate']['id']
+
